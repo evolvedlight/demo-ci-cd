@@ -7,14 +7,13 @@ on:
   workflow_dispatch: # Allows manual triggering for optional deployments
     inputs:
       deploy_target_environment:
-        description: 'Target environment for manual deployment (e.g., staging, prod). Select one if deploying.'
+        description: 'Target environment for manual deployment (e.g., test, acpt, prod). Select one if deploying.'
         required: false # Not required for automated develop branch deployments
         type: choice
         options:
-          - staging # Example, add your non-develop environments
-          - production # Example
-          # Add other relevant environments here
-
+          - test
+          - acpt
+          - prod
 jobs:
   build:
     runs-on: ubuntu-latest
