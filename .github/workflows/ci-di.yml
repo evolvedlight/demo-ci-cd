@@ -42,7 +42,7 @@ jobs:
       - name: Build and Push Docker Image using .NET SDK
         run: |
           dotnet publish src/DemoApi/DemoApi.csproj --os linux --arch x64 -c Release -p:PublishProfile=DefaultContainer \
-          -p:ContainerImageName=ghcr.io/${{ github.repository_owner }}/demo-ci-cd \
+          -p:ContainerImageName=${{ github.repository_owner }}/demo-ci-cd \
           -p:ContainerImageTag=${{ github.sha }} \
           -p:ContainerRegistry=ghcr.io
 
