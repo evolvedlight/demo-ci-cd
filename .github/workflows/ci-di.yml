@@ -30,7 +30,7 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore src/DemoApi.csproj
+        run: dotnet restore src/DemoApi/DemoApi.csproj
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build and Push Docker Image using .NET SDK
         run: |
-          dotnet publish src/DemoApi.csproj --os linux --arch x64 -c Release -p:PublishProfile=DefaultContainer \
+          dotnet publish src/DemoApi/DemoApi.csproj --os linux --arch x64 -c Release -p:PublishProfile=DefaultContainer \
           -p:ContainerImageName=ghcr.io/${{ github.repository_owner }}/demo-ci-cd \
           -p:ContainerImageTag=${{ github.sha }} \
           -p:ContainerRegistry=ghcr.io
