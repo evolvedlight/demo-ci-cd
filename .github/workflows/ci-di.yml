@@ -1,0 +1,97 @@
+name: Build and Deploy API
+
+on:
+  push:
+    branches:
+      - '**' # Trigger on push to all branches
+  workflow_dispatch: # Allows manual triggering for optional deployments
+    inputs:
+      deploy_target_environment:
+        description: 'Target environment for manual deployment (e.g., staging, prod). Select one if deploying.'
+        required: false # Not required for automated develop branch deployments
+        type: choice
+        options:
+          - staging # Example, add your non-develop environments
+          - production # Example
+          # Add other relevant environments here
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      # Output the specific image name with SHA for precise deployments
+      image_name_sha: ghcr.io/${{ github.repository_owner }}/demo-ci-cd:${{ github.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/DemoApi.csproj
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image using .NET SDK
+        run: |
+          dotnet publish src/DemoApi.csproj --os linux --arch x64 -c Release -p:PublishProfile=DefaultContainer \
+          -p:ContainerImageName=ghcr.io/${{ github.repository_owner }}/demo-ci-cd \
+          -p:ContainerImageTag=${{ github.sha }} \
+          -p:ContainerRegistry=ghcr.io
+
+  deploy_test:
+    needs: build # This job depends on the 'build' job completing successfully
+    if: github.ref == 'refs/heads/develop' # Only run for pushes to the 'develop' branch
+    runs-on: ubuntu-latest
+    environment:
+      name: test # Define a 'test' environment in your repo settings
+      url: YOUR_TEST_ENVIRONMENT_URL # Optional: Replace with your test environment's URL
+    steps:
+      - name: Deploy to Test Environment
+        run: |
+          echo "Simulating Helm deployment to Test Environment for image ${{ needs.build.outputs.image_name_sha }}"
+          echo "helm upgrade --install demo-api ./charts/demo-api --namespace test --set image.repository=${{ needs.build.outputs.image_name_sha }} --set image.tag=${{ github.sha }} --values ./charts/demo-api/values-test.yaml"
+          echo "Deployment to test complete."
+
+  deploy_acpt:
+    needs: build
+    if: github.ref == 'refs/heads/develop' # Only run for pushes to the 'develop' branch
+    runs-on: ubuntu-latest
+    environment:
+      name: acpt # Define an 'acpt' environment in your repo settings
+      url: YOUR_ACPT_ENVIRONMENT_URL # Optional: Replace with your acceptance environment's URL
+    steps:
+      - name: Deploy to Acceptance Environment
+        run: |
+          echo "Simulating Helm deployment to Acceptance Environment for image ${{ needs.build.outputs.image_name_sha }}"
+          echo "helm upgrade --install demo-api ./charts/demo-api --namespace acpt --set image.repository=${{ needs.build.outputs.image_name_sha }} --set image.tag=${{ github.sha }} --values ./charts/demo-api/values-acpt.yaml"
+          echo "Deployment to acpt complete."
+
+  deploy_manual:
+    needs: build
+    # Run if:
+    # 1. Workflow was triggered manually (workflow_dispatch)
+    # 2. A 'deploy_target_environment' was selected in the manual trigger inputs
+    # 3. The current branch is NOT 'develop' (develop has its own auto-deploy jobs)
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.deploy_target_environment != '' &&
+      github.ref != 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.deploy_target_environment }} # Use environment from manual trigger
+      url: YOUR_DYNAMIC_ENVIRONMENT_URL # Optional: You might set this dynamically or per environment
+    steps:
+      - name: Deploy to ${{ github.event.inputs.deploy_target_environment }}
+        run: |
+          echo "Simulating manual Helm deployment of image ${{ needs.build.outputs.image_name_sha }} to ${{ github.event.inputs.deploy_target_environment }}"
+          echo "helm upgrade --install demo-api ./charts/demo-api --namespace ${{ github.event.inputs.deploy_target_environment }} --set image.repository=${{ needs.build.outputs.image_name_sha }} --set image.tag=${{ github.sha }} --values ./charts/demo-api/values-${{ github.event.inputs.deploy_target_environment }}.yaml"
+          echo "Manual deployment to ${{ github.event.inputs.deploy_target_environment }} complete."
